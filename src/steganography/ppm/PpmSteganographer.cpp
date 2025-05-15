@@ -7,7 +7,7 @@
 #include <stdexcept>
 
 namespace {
-    int calculateOffset(const std::vector<char>& buffer) {
+    auto calculateOffset(const std::vector<char>& buffer) -> int {
         int lineCount = 0;
 
         for (int i = 0; i < buffer.size(); i++) {
@@ -22,7 +22,7 @@ namespace {
         return -1;
     }
 
-    std::pair<int, int> readDimensions(std::ifstream& file) {
+    auto readDimensions(std::ifstream& file) -> std::pair<int, int> {
         std::string token;
         std::vector<std::string> header;
 
@@ -56,7 +56,7 @@ auto PpmSteganographer::getImageDimensions(const std::string& filepath) -> std::
 }
 
 
-bool PpmSteganographer::encode(const std::string &filepath, const std::string &message, const std::string &key) {
+auto PpmSteganographer::encode(const std::string &filepath, const std::string &message, const std::string &key) -> bool {
     std::ifstream file(filepath, std::ios::binary);
     if (!file.is_open()) {
         throw std::runtime_error("Failed to open file for encoding: " + filepath);
@@ -75,32 +75,10 @@ bool PpmSteganographer::encode(const std::string &filepath, const std::string &m
         throw std::runtime_error("Failed to calculate pixel data offset.");
     }
 
-    std::string bitMessage = Utils::textToBitString(message);
-    std::bitset<32> messageLength(bitMessage.length());
-
-    bitMessage = Utils::xorString(bitMessage, key);
-    bitMessage = messageLength.to_string() + bitMessage;
-
-    if ((pixelDataOffset + bitMessage.size()) > buffer.size()) {
-        throw std::runtime_error("Message too long to encode in this image.");
-    }
-
-    for (int i = 0; i < bitMessage.size(); i++) {
-        buffer[pixelDataOffset + i] = Utils::setLSB(static_cast<uint8_t>(buffer[pixelDataOffset + i]), bitMessage[i]);
-    }
-
-    std::ofstream out(filepath, std::ios::binary | std::ios::trunc);
-    if (!out.is_open()) {
-        throw std::runtime_error("Failed to open file for writing: " + filepath);
-    }
-
-    out.write(buffer.data(), buffer.size());
-    out.close();
-
-    return true;
+    return encodeLSB(buffer, pixelDataOffset, message, key, filepath);
 }
 
-std::string PpmSteganographer::decode(const std::string &filepath, const std::string &key) {
+auto PpmSteganographer::decode(const std::string &filepath, const std::string &key) -> std::string {
     std::ifstream file(filepath, std::ios::binary);
     if (!file.is_open()) {
         throw std::runtime_error("Failed to open file for decoding: " + filepath);
@@ -115,34 +93,16 @@ std::string PpmSteganographer::decode(const std::string &filepath, const std::st
         throw std::runtime_error("Could not find start of pixel data.");
     }
 
-    std::string lengthBits;
-    for (int i = 0; i < 32; i++) {
-        auto bit = (buffer[pixelDataOffset + i] & 1) ? '1' : '0';
-        lengthBits += bit;
-    }
-
-    auto length = std::bitset<32>(lengthBits).to_ulong();
-
-    std::string messageBits;
-    for (int i = 0; i < length; i++) {
-        auto bit = (buffer[pixelDataOffset + 32 + i] & 1) ? '1' : '0';
-        messageBits += bit;
-    }
-
-    messageBits = Utils::xorString(messageBits, key);
-
-    return Utils::bitStringToText(messageBits);
+    return decodeLSB(buffer, pixelDataOffset, key);
 }
 
-bool PpmSteganographer::canEncode(const std::string &filepath, const std::string &message) {
+auto PpmSteganographer::canEncode(const std::string &filepath, const std::string &message) -> bool {
     std::ifstream file(filepath, std::ios::binary);
     if (!file.is_open()) {
         throw std::runtime_error("Failed to open file for capability check: " + filepath);
     }
 
     auto [width, height] = readDimensions(file);
-    auto availableBits = width * height * 3;
-    auto messageBits = Utils::textToBitString(message).length();
-
-    return availableBits >= (messageBits + 32);
+    
+    return canEncodeWithDimensions(width, height, message);
 }

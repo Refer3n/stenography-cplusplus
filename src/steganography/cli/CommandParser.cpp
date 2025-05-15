@@ -51,10 +51,10 @@ auto CommandParser::parse(const std::string &input) const -> Command {
     err = (tokens.size() < 1 || tokens.size() > 2);
     break;
   case CommandType::Info:
-    err = (tokens.size() != 2);
+    err = (tokens.size() != 1);
     break;
   case CommandType::Check:
-    err = (tokens.size() != 1);
+    err = (tokens.size() != 2);
     break;
   case CommandType::Help:
     err = (!tokens.empty());

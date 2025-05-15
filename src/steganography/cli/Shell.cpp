@@ -162,8 +162,8 @@ auto Shell::executeCheck(const std::vector<std::string>& tokens)-> void {
 }
 auto Shell::executeHelp() const -> void {
     fmt::println("Usage:");
-    fmt::println("-e, --encrypt <file> <outputFile> [message]  Encrypt a message in an image.");
-    fmt::println("-d, --decrypt <file> [outputFile]  Decrypt a message from an image.");
+    fmt::println("-e, --encrypt <file> <message> [key]  Encrypt a message in an image.");
+    fmt::println("-d, --decrypt <file> [key]  Decrypt a message from an image.");
     fmt::println("-i, --info <file>  Display information about the image format.");
     fmt::println("-c, --check <file> <message>  Check if an image can encode a message.");
     fmt::println("-h, --help  Display this help message.");

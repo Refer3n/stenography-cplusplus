@@ -9,16 +9,16 @@ class Shell {
   public:
     Shell();
 
-    void run();
+    auto run() -> void;
 
   private:
-    void printPrompt() const;
-    void handleCommand(const Command& command);
-    void executeEncrypt(const std::vector<std::string>& tokens);
-    void executeDecrypt(const std::vector<std::string>& tokens);
-    void executeInfo(const std::vector<std::string>& tokens);
-    void executeCheck(const std::vector<std::string>& tokens);
-    void executeHelp() const;
+    auto printPrompt() const -> void;
+    auto handleCommand(const Command& command) -> void;
+    auto executeEncrypt(const std::vector<std::string>& tokens) -> void;
+    auto executeDecrypt(const std::vector<std::string>& tokens) -> void;
+    auto executeInfo(const std::vector<std::string>& tokens) -> void;
+    auto executeCheck(const std::vector<std::string>& tokens) -> void;
+    auto executeHelp() const -> void;
 
     CommandParser commandParser;
     SteganographerManager steganographerManager;

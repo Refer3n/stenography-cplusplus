@@ -5,7 +5,7 @@
 #include <fmt/ostream.h>
 
 namespace Utils {
-  ImageFormat getImageFormat(const std::string &filename) {
+  auto getImageFormat(const std::string &filename) -> ImageFormat {
     auto ext = filename.substr(filename.find_last_of(".") + 1);
 
     if (ext == "bmp") return ImageFormat::BMP;
@@ -13,7 +13,7 @@ namespace Utils {
     return ImageFormat::NOT_SUPPORTED;
   }
 
-  std::string getImageFormatName(const ImageFormat format) {
+  auto getImageFormatName(const ImageFormat format) -> std::string {
     switch (format) {
       case ImageFormat::BMP: return "BMP";
       case ImageFormat::PPM: return "PPM";
@@ -47,12 +47,12 @@ namespace Utils {
     }
   }
 
-  bool hasWritePermission(const std::string &filepath) {
+  auto hasWritePermission(const std::string &filepath) -> bool {
     std::ofstream file(filepath, std::ios::app);
     return file.is_open();
   }
 
-  std::string textToBitString(const std::string &message) {
+  auto textToBitString(const std::string &message) -> std::string {
     std::string result;
 
     for (char c : message) {
@@ -63,7 +63,7 @@ namespace Utils {
     return result;
   }
 
-  std::string bitStringToText(const std::string &bitString) {
+  auto bitStringToText(const std::string &bitString) -> std::string {
     std::string result;
 
     size_t padding = bitString.length() % 8;
@@ -85,7 +85,7 @@ namespace Utils {
     return result;
   }
 
-  std::string xorString(const std::string& bitString, const std::string& key) {
+  auto xorString(const std::string& bitString, const std::string& key) -> std::string {
     if (key.empty()) return bitString;
 
     std::string result = bitString;
@@ -107,5 +107,4 @@ namespace Utils {
       byte |= (bit == '1' ? 1 : 0);
       return byte;
   }
-
 }
