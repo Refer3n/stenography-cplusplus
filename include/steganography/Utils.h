@@ -3,11 +3,13 @@
 #include <string>
 
 namespace Utils {
-  enum class ImageFormat { PNG, BMP, PPM, NOT_SUPPORTED };
+  enum class ImageFormat { BMP, PPM, NOT_SUPPORTED };
 
   ImageFormat getImageFormat(const std::string& filename);
 
   std::string getImageFormatName(ImageFormat format);
+
+  auto getImageInfo(const std::string& filePath, const std::pair<int, int>& dimensions) -> std::string;
 
   bool hasWritePermission(const std::string& filepath);
 

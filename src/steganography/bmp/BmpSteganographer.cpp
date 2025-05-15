@@ -6,103 +6,135 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+#include <stdexcept>
 
 namespace {
-  bool getImageDimensions(const std::string& filepath, int& width, int& height) {
+    std::pair<int, int> readDimensions(std::ifstream& file) {
+        file.seekg(18);
+        if (file.fail()) {
+            throw std::runtime_error("Failed to seek to BMP width/height fields.");
+        }
+
+        int32_t w = 0, h = 0;
+        file.read(reinterpret_cast<char*>(&w), sizeof(w));
+        file.read(reinterpret_cast<char*>(&h), sizeof(h));
+
+        if (file.fail()) {
+            throw std::runtime_error("Failed to read BMP dimensions.");
+        }
+
+        return {w, std::abs(h)};
+    }
+}
+
+std::pair<int, int> BmpSteganographer::getImageDimensions(const std::string& filepath) {
     std::ifstream file(filepath, std::ios::binary);
-    if (!file.is_open()) return false;
+    if (!file.is_open()) {
+        throw std::runtime_error("Cannot open file: " + filepath);
+    }
 
-    file.seekg(18);
-
-    int32_t w = 0, h = 0;
-    file.read(reinterpret_cast<char*>(&w), sizeof(w));
-    file.read(reinterpret_cast<char*>(&h), sizeof(h));
-
-    if (file.fail()) return false;
-
-    width = w;
-    height = std::abs(h);
-
-    return true;
-  }
+    return readDimensions(file);
 }
 
 bool BmpSteganographer::encode(const std::string &filepath, const std::string &message, const std::string &key) {
-  std::ifstream file(filepath, std::ios::binary | std::ios::ate);
-  if (!file.is_open()) return false;
+    std::ifstream file(filepath, std::ios::binary | std::ios::ate);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open BMP file for encoding: " + filepath);
+    }
 
-  if (!canEncode(filepath, message)) return false;
+    if (!canEncode(filepath, message)) {
+        throw std::runtime_error("BMP image is too small to encode the message.");
+    }
 
-  auto size = file.tellg();
-  file.seekg(0, std::ios::beg);
+    auto size = file.tellg();
+    file.seekg(0, std::ios::beg);
 
-  std::vector<char> buffer(size);
-  if (!file.read(buffer.data(), size)) return false;
-  file.close();
+    std::vector<char> buffer(size);
+    if (!file.read(buffer.data(), size)) {
+        throw std::runtime_error("Failed to read BMP file contents.");
+    }
+    file.close();
 
-  std::string bitMessage = Utils::textToBitString(message);
-  std::bitset<32> messageLength(bitMessage.length());
+    std::string bitMessage = Utils::textToBitString(message);
+    std::bitset<32> messageLength(bitMessage.length());
 
-  bitMessage = Utils::xorString(bitMessage, key);
-  bitMessage = messageLength.to_string() + bitMessage;
+    bitMessage = Utils::xorString(bitMessage, key);
+    bitMessage = messageLength.to_string() + bitMessage;
 
-  uint32_t pixelDataOffset = *reinterpret_cast<uint32_t*>(&buffer[10]);
+    uint32_t pixelDataOffset = *reinterpret_cast<uint32_t*>(&buffer[10]);
 
-  for (auto i = 0; i < bitMessage.size(); i++) {
-    buffer[pixelDataOffset + i] = Utils::setLSB(static_cast<uint8_t>(buffer[pixelDataOffset + i]), bitMessage[i]);
-  }
+    if (pixelDataOffset + bitMessage.size() > buffer.size()) {
+        throw std::runtime_error("Encoded message exceeds BMP file size.");
+    }
 
-  std::ofstream out(filepath, std::ios::binary | std::ios::trunc);
-  if (!out.is_open()) return false;
+    for (size_t i = 0; i < bitMessage.size(); i++) {
+        buffer[pixelDataOffset + i] = Utils::setLSB(static_cast<uint8_t>(buffer[pixelDataOffset + i]), bitMessage[i]);
+    }
 
-  out.write(buffer.data(), buffer.size());
-  out.close();
+    std::ofstream out(filepath, std::ios::binary | std::ios::trunc);
+    if (!out.is_open()) {
+        throw std::runtime_error("Failed to open BMP file for writing: " + filepath);
+    }
 
-  return true;
+    out.write(buffer.data(), buffer.size());
+    out.close();
+
+    return true;
 }
 
 std::string BmpSteganographer::decode(const std::string &filepath, const std::string &key) {
-  std::ifstream file(filepath, std::ios::binary | std::ios::ate);
-  if (!file.is_open()) return "";
+    std::ifstream file(filepath, std::ios::binary | std::ios::ate);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open BMP file for decoding: " + filepath);
+    }
 
-  auto size = file.tellg();
-  file.seekg(0, std::ios::beg);
+    auto size = file.tellg();
+    file.seekg(0, std::ios::beg);
 
-  std::vector<char> buffer(size);
-  if (!file.read(buffer.data(), size)) return "";
-  file.close();
+    std::vector<char> buffer(size);
+    if (!file.read(buffer.data(), size)) {
+        throw std::runtime_error("Failed to read BMP file for decoding.");
+    }
+    file.close();
 
-  uint32_t pixelDataOffset = *reinterpret_cast<uint32_t*>(&buffer[10]);
+    uint32_t pixelDataOffset = *reinterpret_cast<uint32_t*>(&buffer[10]);
 
-  std::string lengthBits;
-  for (auto i = 0; i < 32; i++) {
-    auto bit = (buffer[pixelDataOffset + i] & 1) ? '1' : '0';
-    lengthBits += bit;
-  }
+    if (pixelDataOffset + 32 > buffer.size()) {
+        throw std::runtime_error("BMP file is corrupted or too small for a valid encoded message.");
+    }
 
-  auto length = std::bitset<32>(lengthBits).to_ulong();
-  if (length == 0) return "";
+    std::string lengthBits;
+    for (int i = 0; i < 32; i++) {
+        auto bit = (buffer[pixelDataOffset + i] & 1) ? '1' : '0';
+        lengthBits += bit;
+    }
 
-  std::string messageBits;
+    auto length = std::bitset<32>(lengthBits).to_ulong();
+    if (length == 0 || pixelDataOffset + 32 + length > buffer.size()) {
+        throw std::runtime_error("Invalid or corrupted encoded message length.");
+    }
 
-  for (auto i = 0; i < length; i++) {
-    auto bit = (buffer[pixelDataOffset + 32 + i] & 1) ? '1' : '0';
-    messageBits += bit;
-  }
+    std::string messageBits;
+    for (size_t i = 0; i < length; i++) {
+        auto bit = (buffer[pixelDataOffset + 32 + i] & 1) ? '1' : '0';
+        messageBits += bit;
+    }
 
-  messageBits = Utils::xorString(messageBits, key);
-
-  return Utils::bitStringToText(messageBits);
+    messageBits = Utils::xorString(messageBits, key);
+    return Utils::bitStringToText(messageBits);
 }
 
 bool BmpSteganographer::canEncode(const std::string &filepath, const std::string &message) {
-  int width = 0;
-  int height = 0;
+    std::ifstream file(filepath, std::ios::binary);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open BMP file: " + filepath);
+    }
 
-  if (!getImageDimensions(filepath, width, height)) return false;
+    auto [width, height] = readDimensions(file);
+    file.close();
 
-  auto availableBits = static_cast<long long>(width * height) * 3;
-  auto messageBits = Utils::textToBitString(message).length();
+    auto availableBits = static_cast<long long>(width * height) * 3;
+    auto messageBits = Utils::textToBitString(message).length();
 
-  return availableBits >= messageBits + 32;
+    return availableBits >= messageBits + 32;
 }

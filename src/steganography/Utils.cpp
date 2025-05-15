@@ -1,6 +1,7 @@
 #include "steganography/Utils.h"
 
 #include <bitset>
+#include <filesystem>
 #include <fmt/ostream.h>
 
 namespace Utils {
@@ -8,7 +9,6 @@ namespace Utils {
     auto ext = filename.substr(filename.find_last_of(".") + 1);
 
     if (ext == "bmp") return ImageFormat::BMP;
-    if (ext == "png") return ImageFormat::PNG;
     if (ext == "ppm") return ImageFormat::PPM;
     return ImageFormat::NOT_SUPPORTED;
   }
@@ -16,9 +16,34 @@ namespace Utils {
   std::string getImageFormatName(const ImageFormat format) {
     switch (format) {
       case ImageFormat::BMP: return "BMP";
-      case ImageFormat::PNG: return "PNG";
       case ImageFormat::PPM: return "PPM";
       default: return "NOT_SUPPORTED";
+    }
+  }
+
+  auto getImageInfo(const std::string &filePath, const std::pair<int, int> &dimensions) -> std::string {
+    try {
+      if (!std::filesystem::exists(filePath)) {
+        return "Error: File does not exist.";
+      }
+
+      auto fileSize = std::filesystem::file_size(filePath);
+      auto lastWriteTime = std::filesystem::last_write_time(filePath);
+      auto lastWriteTimeSystem = std::chrono::system_clock::to_time_t(std::chrono::file_clock::to_sys(lastWriteTime));
+
+      auto format = getImageFormat(filePath);
+      auto formatStr = getImageFormatName(format);
+
+      std::ostringstream infoStream;
+      infoStream << "File Info for: " << filePath << "\n"
+                 << "Size: " << fileSize / 1024 << " KB\n"
+                 << "Last Modified: " << std::ctime(&lastWriteTimeSystem)
+                 << "Format: " << formatStr << "\n"
+                 << "Dimensions: " << dimensions.first << " x " << dimensions.second << "\n";
+
+      return infoStream.str();
+    } catch (const std::exception& e) {
+      return std::string("Error: ") + e.what();
     }
   }
 
@@ -64,7 +89,7 @@ namespace Utils {
     if (key.empty()) return bitString;
 
     std::string result = bitString;
-    auto keyBits = Utils::textToBitString(key);
+    auto keyBits = textToBitString(key);
 
     if (keyBits.empty()) return bitString;
     size_t index = 0;
@@ -81,22 +106,6 @@ namespace Utils {
       byte &= 0b11111110;
       byte |= (bit == '1' ? 1 : 0);
       return byte;
-  }
-
-  uint32_t crc32(const uint8_t* data, size_t length) {
-    uint32_t crc = 0xFFFFFFFF;
-
-    for (size_t i = 0; i < length; ++i) {
-      crc ^= data[i];
-      for (int j = 0; j < 8; ++j) {
-        if (crc & 1)
-          crc = (crc >> 1) ^ 0xEDB88320;
-        else
-          crc >>= 1;
-      }
-    }
-
-    return crc ^ 0xFFFFFFFF;
   }
 
 }
